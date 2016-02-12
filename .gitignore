@@ -1,0 +1,16 @@
+
+paket.exe
+bin/
+obj/
+packages/
+.DS_Store
+*.db
+*.suo
+*.userprefs
+AssemblyVersionInfo.cs
+AssemblyVersionInfo.fs
+AssemblyVersionInfo.vb
+build/
+paket-files/
+tools/EventStore-OSS-MacOSX-v3.2.2/
+*.tar.gz
