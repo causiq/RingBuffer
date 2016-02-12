@@ -66,6 +66,11 @@ in chains of three or more alternatives.
   the competing model is likely the intended one. Other use cases may prefer that
   tapped streams are independent from each other such that each consumer sees the
   same set of generated batches from the point at which they tapped the buffer. 
+* When the buffer holds reference types, `null`/zero-out items once they have been
+  taken from the buffer. Right now, the buffer array will hold references to items
+  that have been taken but which have not yet been overwritten by a cycle of the ring
+  buffer. This can result in certain objects making it into Gen 2, thus contributing
+  to an increased managed heap size and additional Gen 2 collections.
 
 ## Maintainers
 
