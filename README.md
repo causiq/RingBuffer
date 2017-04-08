@@ -75,3 +75,4 @@ in chains of three or more alternatives.
 ## Maintainers
 
 * [Marcus Griep](https://neoeinstein.github.io/) — [@neoeinstein](https://twitter.com/neoeinstein)
+* [Henrik Feldt](https://haf.github.io/) – [@henrikfeldt](https://twitter.com/henrikfeldt)
