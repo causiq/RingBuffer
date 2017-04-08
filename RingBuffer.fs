@@ -48,7 +48,7 @@ module RingBuffer =
     Job.foreverServer proc >>-. self
   let put q x = q.putCh *<- x
   let take q = q.takeCh :> Alt<_>
-  let takeBatch (maxBatchSize : uint32) q = q.takeBatchCh *<-=>- (fun iv -> int maxBatchSize, iv) 
+  let takeBatch (maxBatchSize : uint32) q = q.takeBatchCh *<-=>- (fun iv -> int maxBatchSize, iv)
   let takeAll q = takeBatch System.UInt32.MaxValue q
 
   let consume q s = Stream.iterJob (fun x -> q.putCh *<- x) s |> Job.start

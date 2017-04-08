@@ -1,16 +1,9 @@
-# EditorConfig is awesome:
-http://EditorConfig.org
-
-# top-most EditorConfig file
 root = true
 
-# Default settings:
-# A newline ending every file
-# Use 4 spaces as indentation
 [*]
-insert_final_newline = true
+insert_final_newline = false
 indent_style = space
-indent_size = 4
+indent_size = 2
 
 [*.{fs,fsi,fsx}]
 charset = utf-8
