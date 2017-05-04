@@ -8,32 +8,30 @@
 open Hopac
 open Expecto
 open Hopac.Infixes
+open Hopac.Extensions
 
 let tests =
   testList "RingBuffer" [
-    testCaseAsync "enqueue" (job {
+    testCaseAsync "enqueue/dequeue" (job {
       let! rb = RingBuffer.create 4us
+      let dataSource = ["a";"b";"c";"d";"e";"f";"g"]
+      let latch = Latch dataSource.Length
 
       let mutable result = []
       
-      let takePerSecond = Job.delay <| fun () ->
-        timeOutMillis 100 ^=>. job {
-          let! res = RingBuffer.take rb
-          result <- ( res :: result)
-        }
-      Job.foreverServer takePerSecond |> run
-      
-      do! RingBuffer.put rb "a"
-      do! RingBuffer.put rb "b"
-      do! RingBuffer.put rb "c"
-      do! RingBuffer.put rb "d"
-      do! RingBuffer.put rb "e"
-      do! RingBuffer.put rb "f"
-      do! RingBuffer.put rb "g"
+      let take =
+        (RingBuffer.take rb ^=> fun res ->
+           result <- (res :: result)
+           Latch.decrement latch
+           ) :> Job<_>
 
-      do! timeOutMillis 1000 ^=>. job {
-            Expect.equal result (List.rev ["a";"b";"c";"d";"e";"f";"g"]) "Got value"
-          }
+      do! Job.foreverServer take
+      do! Seq.iterJobIgnore (fun v -> RingBuffer.put rb v) (List.rev dataSource)
+      
+      do! Latch.await latch
+
+      Expect.equal result dataSource "Got value"
+
     } |> Job.toAsync)
 
     testCaseAsync "take all/batch" (job {
