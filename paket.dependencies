@@ -2,5 +2,6 @@ source https://nuget.org/api/v2
 
 nuget Hopac
 nuget Expecto
+nuget Expecto.Hopac
 nuget Expecto.BenchmarkDotNet
 nuget Expecto.FsCheck

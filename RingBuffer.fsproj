@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="RingBuffer.fs" />
     <None Include="paket.references" />
+    <None Include="RingBuffer.fsx" />
   </ItemGroup>
   <Import Project=".paket\Paket.Restore.targets" />
 </Project>

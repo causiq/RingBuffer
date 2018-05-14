@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "RingBuffer", "RingBuffer.fsproj", "{D3D29C40-E116-48B9-8BBE-0CC2CFA62E16}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D3D29C40-E116-48B9-8BBE-0CC2CFA62E16}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3D29C40-E116-48B9-8BBE-0CC2CFA62E16}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3D29C40-E116-48B9-8BBE-0CC2CFA62E16}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3D29C40-E116-48B9-8BBE-0CC2CFA62E16}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

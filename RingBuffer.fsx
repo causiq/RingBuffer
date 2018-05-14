@@ -3,78 +3,121 @@
 #r "Hopac.Platform"
 #r "Hopac"
 #r "packages/Expecto/lib/net461/Expecto.dll"
-#r "packages/Expecto.FsCheck/lib/net461/Expecto.dll"
-#r "packages/Argu/lib/net40/Argu.dll"
+#r "packages/Expecto.FsCheck/lib/net461/Expecto.FsCheck.dll"
+#r "packages/Expecto.Hopac/lib/net461/Expecto.Hopac.dll"
+#r "packages/Argu/lib/net45/Argu.dll"
 #load "RingBuffer.fs"
+open System.Threading
 open Hopac
 open Expecto
+open Expecto.Logging
+open Expecto.Logging.Message
+open Expecto.Flip
+open Hopac
 open Hopac.Infixes
 open Hopac.Extensions
 
-let tests =
-  testList "RingBuffer" [
-    testCaseAsync "enqueue/dequeue" (job {
-      let! rb = RingBuffer.create 4us
-      let dataSource = ["a";"b";"c";"d";"e";"f";"g"]
-      let latch = Latch dataSource.Length
+let logger = Log.create "RB"
 
-      let mutable result = []
+let putTake =
+  testCaseJob "put, take" (job {
+    let! rb = RingBuffer.create 4us
+    let dataSource = ["a";"b";"c";"d";"e";"f";"g"]
+    let latch = Latch dataSource.Length
 
-      let take =
-        (RingBuffer.take rb ^=> fun res ->
-           result <- (res :: result)
-           Latch.decrement latch
-           ) :> Job<_>
+    let mutable result = []
 
-      do! Job.foreverServer take
-      do! Seq.iterJobIgnore (fun v -> RingBuffer.put rb v) (List.rev dataSource)
+    let take =
+      RingBuffer.take rb ^=> fun res ->
+        result <- res :: result
+        Latch.decrement latch
+      :> Job<_>
 
-      do! Latch.await latch
+    do! Job.foreverServer take
+    do! Seq.iterJobIgnore (fun v -> RingBuffer.put rb v) (List.rev dataSource)
 
-      Expect.equal result dataSource "Got value"
+    do! Latch.await latch
 
-    } |> Job.toAsync)
+    result |> Expect.equal "Got value" dataSource
+  })
 
-    testCaseAsync "take all/batch" (job {
-      let! rb = RingBuffer.create 4us
+let fullBuffer =
+  testCaseJob "put when full" (job {
+    let! rb = RingBuffer.create 2us
 
-      do! RingBuffer.put rb "a"
-      do! RingBuffer.put rb "b"
-      do! RingBuffer.put rb "c"
-      do! RingBuffer.put rb "d"
-      let! res = RingBuffer.takeBatch 3us rb
-      Expect.equal res ([|"a";"b";"c"|]) "Got value"
-      do! RingBuffer.put rb "e"
-      do! RingBuffer.put rb "f"
-      do! RingBuffer.put rb "g"
+    do! logger.infoWithBP (eventX "1...")
+    let! firstOk = RingBuffer.tryPut rb "first"
+    firstOk |> Expect.isTrue "succeeded"
 
-      let! res = RingBuffer.takeAll rb
-      Expect.equal res ([|"d";"e";"f";"g";|]) "Got value"
+    do! logger.infoWithBP (eventX "2...")
+    do! RingBuffer.put rb "second"
 
-    } |> Job.toAsync)
+    do! logger.infoWithBP (eventX "3...")
+    let! thirdOk = RingBuffer.tryPut rb "third"
+    thirdOk |> Expect.isFalse "Should not have room"
 
-    testList "ringSizeValidate" [
-      test "0 is not allowed" {
-        Expect.equal (Utils.ringSizeValidate 0us) false "(ringSizeValidate 0)"
-      }
+    let! b = RingBuffer.takeBatch 1us rb
+    b.Length |> Expect.equal "Has one item" 1
 
-      test "1 is allowed" {
-        Expect.equal (Utils.ringSizeValidate 1us) true "(ringSizeValidate 1)"
-      }
+    do! logger.infoWithBP (eventX "3 again...")
+    let! thirdOk = RingBuffer.tryPut rb "third"
+    thirdOk |> Expect.isTrue "Should have room now"
+  })
 
-      test "is not power of 2" {
-        Expect.equal (Utils.ringSizeValidate 7us) false "(ringSizeValidate 7)"
-      }
+//Tests.runTests defaultConfig fullBuffer
 
-      test "is power of 2" {
-        Expect.equal (Utils.ringSizeValidate 8us) true "(ringSizeValidate 8)"
-      }
+let takeAll =
+  testCaseJob "take all, batch" (job {
+    let! rb = RingBuffer.create 4us
 
-      test "half the range of the index data types (uint16)" {
-        Expect.equal (Utils.ringSizeValidate (uint16 (System.Math.Pow(2.,15.)))) true "(ringSizeValidate pow 2 15)"
-      }
-    ]
+    do! RingBuffer.put rb "a"
+    do! RingBuffer.put rb "b"
+    do! RingBuffer.put rb "c"
+    do! RingBuffer.put rb "d"
+    let! res = RingBuffer.takeBatch 3us rb
+    res |> Expect.equal "Got value" ([|"a";"b";"c"|])
+    do! RingBuffer.put rb "e"
+    do! RingBuffer.put rb "f"
+    do! RingBuffer.put rb "g"
 
+    let! res = RingBuffer.takeAll rb
+    res |> Expect.equal "Got value" ([|"d";"e";"f";"g";|])
+  })
+
+let validation =
+  testList "ringSizeValidate" [
+    test "0 is not allowed" {
+      Utils.ringSizeValidate 0us
+        |> Expect.equal "(ringSizeValidate 0)" false
+    }
+
+    test "1 is allowed" {
+      Utils.ringSizeValidate 1us
+        |> Expect.equal "(ringSizeValidate 1)" true
+    }
+
+    test "is not power of 2" {
+      Utils.ringSizeValidate 7us
+        |> Expect.equal "(ringSizeValidate 7)" false
+    }
+
+    test "is power of 2" {
+      Utils.ringSizeValidate 8us
+        |> Expect.equal "(ringSizeValidate 8)" true
+    }
+
+    test "half the range of the index data types (uint16)" {
+      Utils.ringSizeValidate (uint16 (System.Math.Pow(2.,15.)))
+        |> Expect.equal "(ringSizeValidate pow 2 15)" true
+    }
   ]
 
-Tests.runTestsWithArgs defaultConfig [| "--summary"; "--debug" |] tests
+let tests =
+  testList "RingBuffer" [
+    putTake
+    fullBuffer
+    takeAll
+    validation
+  ]
+
+Tests.runTestsWithArgs defaultConfig [| "--summary"; "--debug"; "--sequenced" |] tests

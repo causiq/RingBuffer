@@ -6,15 +6,15 @@ open Hopac.Infixes
 type RingBuffer<'a> =
   private {
     putCh: Ch<'a>
+    tryPutCh: Ch<'a * IVar<bool>>
     takeCh: Ch<'a>
-    takeBatchCh: Ch<uint16*IVar<'a[]>>
+    takeBatchCh: Ch<uint16 * IVar<'a[]>>
   }
 
 module internal Utils =
   open System
   let ringSizeValidate num =
     (num <> 0us) && ((num &&& (num-1us)) = 0us) && ((int num >>> 16) = 0)
-  let logDrop _ = Console.Error.Write "."
 
 module RingBuffer =
   open Utils
@@ -23,7 +23,7 @@ module RingBuffer =
     if not (ringSizeValidate ringSize) then
       failwith "ringSize must be a power of 2 and maximum ringSize can only be half the range of the index data types (uint16)"
 
-    let self = { putCh = Ch (); takeCh = Ch (); takeBatchCh = Ch () }
+    let self = { putCh = Ch (); tryPutCh = Ch (); takeCh = Ch (); takeBatchCh = Ch () }
     let ring = Array.zeroCreate (int ringSize)
     let mutable read, write = 0us, 0us
 
@@ -36,8 +36,18 @@ module RingBuffer =
     let inline enqueue x =
       ring.[mask write] <- x
       write <- write + 1us
+
+    let tryEnqueue (x, succeeded) =
+      //printfn "tryEnqueue; ring=%A, full=%b, mask=%i, count=%i, empty=%b, ringSize=%i" ring (full ()) (mask write) (count ()) (empty ()) ringSize
+      if full () then
+        succeeded *<= false
+      else
+        enqueue x
+        succeeded *<= true
+
     let inline dequeue () =
       read <- read + 1us
+
     let dequeueBatch (num, ivar) =
       let dequeueCount = min num <| count ()
       let arr = Array.zeroCreate (int dequeueCount)
@@ -58,18 +68,19 @@ module RingBuffer =
             arr )
 
     let put () = self.putCh ^-> enqueue
+    let tryPut () = self.tryPutCh ^=> tryEnqueue
     let take () = self.takeCh *<- ring.[mask read] ^-> dequeue
     let takeBatch () = self.takeBatchCh ^=> Job.delayWith dequeueBatch
-    let drop () = self.putCh ^-> logDrop
 
     let proc = Job.delay <| fun () ->
-      if empty () then put ()
-      elif full () then takeBatch () <|> take ()
-      else takeBatch () <|> take () <|> put ()
+      if empty () then tryPut () <|> put ()
+      elif full () then takeBatch () <|> take () <|> tryPut ()
+      else takeBatch () <|> take () <|> tryPut () <|> put ()
 
     Job.foreverServer proc >>-. self
 
   let put q x = q.putCh *<- x
+  let tryPut q x = q.tryPutCh *<-=>- fun res -> x, res
   let take q = q.takeCh :> Alt<_>
   let takeBatch (maxBatchSize : uint16) q = q.takeBatchCh *<-=>- (fun iv -> maxBatchSize, iv)
   let takeAll q = takeBatch System.UInt16.MaxValue q
