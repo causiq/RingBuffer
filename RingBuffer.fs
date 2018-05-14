@@ -4,17 +4,24 @@ open Hopac
 open Hopac.Infixes
 
 type RingBuffer<'a> =
-  private {putCh : Ch<'a>; takeCh : Ch<'a>; takeBatchCh : Ch<uint16*IVar<'a[]>>}
+  private {
+    putCh: Ch<'a>
+    takeCh: Ch<'a>
+    takeBatchCh: Ch<uint16*IVar<'a[]>>
+  }
 
-module internal Utils = 
-  let ringSizeValidate num = 
-     (num <> 0us) && ((num &&& (num-1us)) = 0us) && ((int num >>> 16) = 0)
+module internal Utils =
+  open System
+  let ringSizeValidate num =
+    (num <> 0us) && ((num &&& (num-1us)) = 0us) && ((int num >>> 16) = 0)
+  let logDrop _ = Console.Error.Write "."
 
 module RingBuffer =
   open Utils
 
-  let create (ringSize : uint16) : Job<RingBuffer<'a>> =
-    if not (ringSizeValidate ringSize) then failwith "ringSize must be a power of 2 and maximum ringSize can only be half the range of the index data types (uint16)"
+  let create (ringSize: uint16): Job<RingBuffer<'a>> =
+    if not (ringSizeValidate ringSize) then
+      failwith "ringSize must be a power of 2 and maximum ringSize can only be half the range of the index data types (uint16)"
 
     let self = { putCh = Ch (); takeCh = Ch (); takeBatchCh = Ch () }
     let ring = Array.zeroCreate (int ringSize)
@@ -53,10 +60,11 @@ module RingBuffer =
     let put () = self.putCh ^-> enqueue
     let take () = self.takeCh *<- ring.[mask read] ^-> dequeue
     let takeBatch () = self.takeBatchCh ^=> Job.delayWith dequeueBatch
+    let drop () = self.putCh ^-> logDrop
 
     let proc = Job.delay <| fun () ->
-      if empty() then put ()
-      elif full () then  takeBatch () <|> take ()
+      if empty () then put ()
+      elif full () then takeBatch () <|> take ()
       else takeBatch () <|> take () <|> put ()
 
     Job.foreverServer proc >>-. self

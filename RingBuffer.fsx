@@ -1,9 +1,10 @@
-#r "packages/Hopac/lib/net45/Hopac.Core.dll"
-#r "packages/Hopac/lib/net45/Hopac.Platform.dll"
-#r "packages/Hopac/lib/net45/Hopac.dll"
-#r "packages/Mono.Cecil/lib/net45/Mono.Cecil.Rocks.dll"
-#r "packages/Mono.Cecil/lib/net45/Mono.Cecil.dll"
-#r "packages/Expecto/lib/net40/Expecto.dll"
+#I "bin/Debug/net461"
+#r "Hopac.Core"
+#r "Hopac.Platform"
+#r "Hopac"
+#r "packages/Expecto/lib/net461/Expecto.dll"
+#r "packages/Expecto.FsCheck/lib/net461/Expecto.dll"
+#r "packages/Argu/lib/net40/Argu.dll"
 #load "RingBuffer.fs"
 open Hopac
 open Expecto
@@ -18,7 +19,7 @@ let tests =
       let latch = Latch dataSource.Length
 
       let mutable result = []
-      
+
       let take =
         (RingBuffer.take rb ^=> fun res ->
            result <- (res :: result)
@@ -27,7 +28,7 @@ let tests =
 
       do! Job.foreverServer take
       do! Seq.iterJobIgnore (fun v -> RingBuffer.put rb v) (List.rev dataSource)
-      
+
       do! Latch.await latch
 
       Expect.equal result dataSource "Got value"
@@ -36,7 +37,7 @@ let tests =
 
     testCaseAsync "take all/batch" (job {
       let! rb = RingBuffer.create 4us
-      
+
       do! RingBuffer.put rb "a"
       do! RingBuffer.put rb "b"
       do! RingBuffer.put rb "c"
@@ -61,6 +62,10 @@ let tests =
         Expect.equal (Utils.ringSizeValidate 1us) true "(ringSizeValidate 1)"
       }
 
+      test "is not power of 2" {
+        Expect.equal (Utils.ringSizeValidate 7us) false "(ringSizeValidate 7)"
+      }
+
       test "is power of 2" {
         Expect.equal (Utils.ringSizeValidate 8us) true "(ringSizeValidate 8)"
       }
@@ -68,9 +73,8 @@ let tests =
       test "half the range of the index data types (uint16)" {
         Expect.equal (Utils.ringSizeValidate (uint16 (System.Math.Pow(2.,15.)))) true "(ringSizeValidate pow 2 15)"
       }
-    ] 
-    
+    ]
+
   ]
 
-
-Tests.runTests defaultConfig tests
+Tests.runTestsWithArgs defaultConfig [| "--summary"; "--debug" |] tests
