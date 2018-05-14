@@ -16,7 +16,7 @@ following line to your `paket.dependencies` file:
 
     github logary/RingBuffer RingBuffer.fs
 
-## About the ring buffer
+## About the RingBuffer
 
 Like a `BoundedMb<'a>`, the `RingBuffer<'a>` provides back-pressure to the upstream
 producer of items in the event that the buffer is full. The `RingBuffer<'a>`
@@ -43,6 +43,10 @@ in chains of three or more alternatives.
   [Hopac<~>Warn]: https://hopac.github.io/Hopac/Hopac.html#def:val%20Hopac.Infixes.<~>
   [Paket]: https://fsprojects.github.io/Paket/github-dependencies.html
   [WikiCircBuffer]: http://en.wikipedia.org/wiki/Circular_buffer
+
+## Testing
+
+Load `RingBuffer.fsx` in fsharpi. This will run the Expecto tests.
   
 ### Possible future improvements
 
