@@ -64,7 +64,37 @@ let fullBuffer =
     thirdOk |> Expect.isTrue "Should have room now"
   })
 
-//Tests.runTests defaultConfig fullBuffer
+let emptyBuffer =
+  testCaseJob "take when empty" (job {
+    let! rb = RingBuffer.create 2us
+
+    do! logger.infoWithBP (eventX "1,2...")
+    do! RingBuffer.put rb "first"
+    do! RingBuffer.put rb "second"
+
+    let! res = RingBuffer.take rb
+    res |> Expect.equal "Got Value" "first"
+    let! res = RingBuffer.tryTake rb
+    res |> Expect.equal "Got Value" (true, "second")
+
+    do! logger.infoWithBP (eventX "try take when empty...")
+    let! falseIfEmpty = RingBuffer.tryTake rb
+    falseIfEmpty |> Expect.equal "Got Value" (false, Unchecked.defaultof<_>)
+
+    do! logger.infoWithBP (eventX "try takeBatch when empty...")
+    let! falseIfEmpty = RingBuffer.tryTakeBatch 10us rb
+    falseIfEmpty |> Expect.equal "Got Value" (false, Unchecked.defaultof<_>)
+
+    do! logger.infoWithBP (eventX "try takeAll when empty...")
+    let! falseIfEmpty = RingBuffer.tryTakeAll rb
+    falseIfEmpty |> Expect.equal "Got Value" (false, Unchecked.defaultof<_>)
+
+    do! RingBuffer.put rb "first"
+    do! RingBuffer.put rb "second"
+    let! res = RingBuffer.tryTakeAll rb
+    res |> Expect.equal "Got Value" (true, [|"first"; "second"|])
+  })
+
 
 let takeAll =
   testCaseJob "take all, batch" (job {
@@ -118,6 +148,7 @@ let tests =
     fullBuffer
     takeAll
     validation
+    emptyBuffer
   ]
 
 Tests.runTestsWithArgs defaultConfig [| "--summary"; "--debug"; "--sequenced" |] tests

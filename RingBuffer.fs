@@ -6,7 +6,8 @@ open Hopac.Infixes
 type RingBuffer<'a> =
   private {
     putCh: Ch<'a>
-    setFull: MVar<unit>
+    full: MVar<unit>
+    empty: MVar<unit>
     takeCh: Ch<'a>
     takeBatchCh: Ch<uint16 * IVar<'a[]>>
   }
@@ -23,7 +24,7 @@ module RingBuffer =
     if not (ringSizeValidate ringSize) then
       failwith "ringSize must be a power of 2 and maximum ringSize can only be half the range of the index data types (uint16)"
 
-    let self = { putCh = Ch (); setFull = MVar (); takeCh = Ch (); takeBatchCh = Ch () }
+    let self = { putCh = Ch (); full = MVar (); empty = MVar (); takeCh = Ch (); takeBatchCh = Ch () }
     let ring = Array.zeroCreate (int ringSize)
     let mutable read, write = 0us, 0us
 
@@ -64,20 +65,31 @@ module RingBuffer =
     let takeBatch () = self.takeBatchCh ^=> Job.delayWith dequeueBatch
 
     let proc = Job.delay <| fun () ->
-      if empty () then put () :> Job<_>
+      if empty () then
+        MVar.fill self.empty ()
+        >>= fun _ -> put ()
+        >>= fun _ -> MVar.take self.empty
       elif full () then
-        MVar.fill self.setFull ()
+        MVar.fill self.full ()
         >>= fun _ -> (takeBatch () <|> take ())
-        >>= fun _ -> MVar.take self.setFull
-      else ( takeBatch () <|> take () <|> put () ) :> Job<_>
+        >>= fun _ -> MVar.take self.full
+      else (takeBatch () <|> take () <|> put ()) :> Job<_>
 
     Job.foreverServer proc >>-. self
 
   let put q x = q.putCh *<- x
-  let tryPut q x = (q.putCh *<- x ^->. true) <|> (MVar.read q.setFull ^->. false)
+  let tryPut q x = (q.putCh *<- x ^->. true) <|> (MVar.read q.full ^->. false)
+
+  let inline private returnIfEmpty ring = MVar.read ring.empty ^->. (false, Unchecked.defaultof<_>)
+
   let take q = q.takeCh :> Alt<_>
+  let tryTake q = (q.takeCh ^-> fun res -> (true, res)) <|> returnIfEmpty q
+
   let takeBatch (maxBatchSize : uint16) q = q.takeBatchCh *<-=>- (fun iv -> maxBatchSize, iv)
+  let tryTakeBatch (maxBatchSize : uint16) q = (takeBatch maxBatchSize q ^-> fun res -> (true, res)) <|> returnIfEmpty q
+
   let takeAll q = takeBatch System.UInt16.MaxValue q
+  let tryTakeAll q = (takeAll q ^-> fun res -> (true, res)) <|> returnIfEmpty q
 
   let consume q s = Stream.iterJob (fun x -> q.putCh *<- x) s |> Job.start
   let tap q = Stream.indefinitely <| q.takeCh
