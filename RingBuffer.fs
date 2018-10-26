@@ -80,16 +80,16 @@ module RingBuffer =
   let put q x = q.putCh *<- x
   let tryPut q x = (q.putCh *<- x ^->. true) <|> (MVar.read q.full ^->. false)
 
-  let inline private returnIfEmpty ring = MVar.read ring.empty ^->. (false, Unchecked.defaultof<_>)
+  let inline private noneIfEmpty ring = MVar.read ring.empty ^->. None
 
   let take q = q.takeCh :> Alt<_>
-  let tryTake q = (q.takeCh ^-> fun res -> (true, res)) <|> returnIfEmpty q
+  let tryTake q = (q.takeCh ^-> Some) <|> noneIfEmpty q
 
   let takeBatch (maxBatchSize : uint16) q = q.takeBatchCh *<-=>- (fun iv -> maxBatchSize, iv)
-  let tryTakeBatch (maxBatchSize : uint16) q = (takeBatch maxBatchSize q ^-> fun res -> (true, res)) <|> returnIfEmpty q
+  let tryTakeBatch (maxBatchSize : uint16) q = (takeBatch maxBatchSize q ^-> Some) <|> noneIfEmpty q
 
   let takeAll q = takeBatch System.UInt16.MaxValue q
-  let tryTakeAll q = (takeAll q ^-> fun res -> (true, res)) <|> returnIfEmpty q
+  let tryTakeAll q = (takeAll q ^-> Some) <|> noneIfEmpty q
 
   let consume q s = Stream.iterJob (fun x -> q.putCh *<- x) s |> Job.start
   let tap q = Stream.indefinitely <| q.takeCh
