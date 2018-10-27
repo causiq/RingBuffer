@@ -64,13 +64,17 @@ let fullBuffer =
     thirdOk |> Expect.isTrue "Should have room now"
   })
 
-let emptyBuffer =
-  testCaseJob "take when empty" (job {
+let tryOperation =
+  testCaseJob "try op in empty/full state" (job {
     let! rb = RingBuffer.create 2us
 
-    do! logger.infoWithBP (eventX "1,2...")
-    do! RingBuffer.put rb "first"
-    do! RingBuffer.put rb "second"
+    do! logger.infoWithBP (eventX "empty...")
+    do! RingBuffer.put rb 1
+    let! res = RingBuffer.tryPut rb 2
+    res |> Expect.equal "Should have room" true
+
+    let! res = RingBuffer.tryPut rb 3
+    res |> Expect.equal "Should have no room" false
 
     let! res = RingBuffer.take rb
     res |> Expect.equal "Got Value" "first"
