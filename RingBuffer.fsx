@@ -64,7 +64,65 @@ let fullBuffer =
     thirdOk |> Expect.isTrue "Should have room now"
   })
 
-//Tests.runTests defaultConfig fullBuffer
+let tryOperation =
+  testCaseJob "try op in empty/full state" (job {
+    let! rb = RingBuffer.create 2us
+
+    do! logger.infoWithBP (eventX "initially empty...")
+    let! res = RingBuffer.tryTake rb
+    res |> Expect.isNone "Should be none, since rb empty"
+
+    let! res = RingBuffer.tryTakeBatch 10us rb
+    res |> Expect.isNone "Should be none, since rb empty"
+
+    let! res = RingBuffer.tryTakeAll rb
+    res |> Expect.isNone "Should be none, since rb empty"
+
+    do! RingBuffer.put rb 1
+
+    let! res = RingBuffer.tryPut rb 2
+    res |> Expect.equal "Should have room" true
+
+    do! logger.infoWithBP (eventX "first full...")
+
+    let! res = RingBuffer.tryPut rb 3
+    res |> Expect.equal "Should have no room when full" false
+
+    let! res = RingBuffer.tryTake rb
+    res |> Expect.equal "Should have 1" (Some 1)
+
+    do! logger.infoWithBP (eventX "not full and not empty...")
+
+    let! res = RingBuffer.tryTake rb
+    res |> Expect.equal "Should have 2" (Some 2)
+
+    do! logger.infoWithBP (eventX "second empty...")
+
+    let! res = RingBuffer.tryTake rb
+    res |> Expect.isNone "Should be none, since rb empty again"
+
+    let! res = RingBuffer.tryTakeAll rb
+    res |> Expect.isNone "Should be none, since rb empty again"
+
+    let! res = RingBuffer.tryTakeBatch 10us rb
+    res |> Expect.isNone "Should be none, since rb empty again"
+
+    let! res = RingBuffer.tryPut rb 3
+    res |> Expect.isTrue "Should have room"
+
+    let! res = RingBuffer.tryPut rb 4
+    res |> Expect.isTrue "Should have room"
+
+    do! logger.infoWithBP (eventX "second full...")
+
+    let! res = RingBuffer.tryPut rb 5
+    res |> Expect.isFalse "Should have no room"
+
+    let! res = RingBuffer.tryTakeAll rb
+    res |> Expect.equal "Got 3, 4" (Some [|3;4|])
+
+  })
+
 
 let takeAll =
   testCaseJob "take all, batch" (job {
@@ -118,6 +176,7 @@ let tests =
     fullBuffer
     takeAll
     validation
+    tryOperation
   ]
 
 Tests.runTestsWithArgs defaultConfig [| "--summary"; "--debug"; "--sequenced" |] tests
